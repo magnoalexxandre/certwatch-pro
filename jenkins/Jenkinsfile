@@ -1,4 +1,4 @@
-def CHAT_URL = 'https://chat.googleapis.com/v1/spaces/AAAAfWUP3JQ/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=A352dYCjJ8CFo6V0v4O8V6V4LiwJ11Wj0iofkzI1mpo'
+def CHAT_URL = 'https://chat.googleapis.com/v1/spaces/AAAAfWUP3JQ/messages'
 def EMAIL_TO = 'monitoramento-sat@sef.sc.gov.br'
 
 pipeline {
@@ -20,20 +20,15 @@ pipeline {
             steps {
                 script {
                     def servers = [
-                        'lnsat-lb-int-h1.sef.sc.gov.br',
-                        'lnsat-lb-int-h2.sef.sc.gov.br',
-                        'lnsat-lb-int-p1.sef.sc.gov.br',
-                        'lnsat-lb-int-p2.sef.sc.gov.br',
                         'lnsat-lb-ext-h1.sef.sc.gov.br',
-                        'lnsat-lb-ext-h2.sef.sc.gov.br',
-                        'lnsat-lb-ext-p1.sef.sc.gov.br',
-                        'lnsat-lb-ext-p2.sef.sc.gov.br'
+                        'lnsat-lb-ext-p1.sef.sc.gov.br'
                     ]
 
                     def checkScript = """
                         CERT_PATH='${params.CERT_PATH}'
                         WARN_DAYS='${params.WARN_DAYS}'
                         HOSTNAME=\$(hostname -f)
+                        total=0
                         for cert in "\$CERT_PATH"/*.pem "\$CERT_PATH"/*.crt "\$CERT_PATH"/*.cer; do
                             [ -f "\$cert" ] || continue
                             expiry=\$(openssl x509 -enddate -noout -in "\$cert" 2>/dev/null | cut -d= -f2)
@@ -41,42 +36,51 @@ pipeline {
                             expiry_epoch=\$(date -d "\$expiry" +%s 2>/dev/null)
                             now_epoch=\$(date +%s)
                             days=\$(( (expiry_epoch - now_epoch) / 86400 ))
-                            if [ "\$days" -lt "\$WARN_DAYS" ]; then
-                                cn=\$(openssl x509 -subject -noout -in "\$cert" 2>/dev/null | sed 's/.*CN\\s*=\\s*//' | sed 's/[,\\/].*//')
-                                echo "\${HOSTNAME}|\$(basename \$cert)|\${cn}|\${days}"
+                            filename=\$(basename \$cert)
+                            cn=\$(openssl x509 -subject -noout -in "\$cert" 2>/dev/null | sed 's/.*CN\\s*=\\s*//' | sed 's/[,\\/].*//')
+                            total=\$(( total + 1 ))
+                            if [ "\$days" -lt 0 ]; then
+                                echo "❌ \${filename}: EXPIRADO há \$(( days * -1 )) dias" >&2
+                                echo "\${HOSTNAME}|\${filename}|\${cn}|\${days}"
+                            elif [ "\$days" -lt "\$WARN_DAYS" ]; then
+                                echo "⚠️  \${filename}: \${days} dias restantes" >&2
+                                echo "\${HOSTNAME}|\${filename}|\${cn}|\${days}"
+                            else
+                                echo "✅ \${filename}: \${days} dias" >&2
                             fi
                         done
+                        echo "📋 \${HOSTNAME} — \${total} certificado(s) verificado(s)" >&2
                     """
 
-                    def resultados = [:]
-                    def jobs = [:]
+                    def alertas  = []
+                    def falhas   = []
 
                     servers.each { server ->
-                        jobs[server] = {
+                        echo "Verificando ${server}..."
+                        try {
                             node(server) {
                                 def out = sh(script: checkScript, returnStdout: true).trim()
-                                if (out) resultados[server] = out
+                                if (out) {
+                                    out.split('\n').each { linha ->
+                                        if (linha.trim()) {
+                                            def p = linha.trim().split('\\|')
+                                            alertas << [hostname: p[0], file: p[1], cn: p[2], days: p[3].toInteger()]
+                                        }
+                                    }
+                                }
                             }
-                        }
-                    }
-
-                    parallel jobs
-
-                    def alertas = []
-                    resultados.each { _, output ->
-                        output.split('\n').each { linha ->
-                            if (linha.trim()) {
-                                def p = linha.trim().split('\\|')
-                                alertas << [hostname: p[0], file: p[1], cn: p[2], days: p[3].toInteger()]
-                            }
+                            echo "✅ ${server} — OK"
+                        } catch (err) {
+                            echo "❌ ${server} — falhou: ${err.message}"
+                            falhas << server
                         }
                     }
 
                     alertas.sort { it.days }
 
-                    if (alertas) {
-                        notificarCertificados(alertas, CHAT_URL, EMAIL_TO, env.BUILD_URL)
-                        echo "Notificação enviada — ${alertas.size()} alerta(s)"
+                    if (alertas || falhas) {
+                        notificarCertificados(alertas, falhas, CHAT_URL, EMAIL_TO, env.BUILD_URL)
+                        echo "Notificação enviada — ${alertas.size()} alerta(s), ${falhas.size()} falha(s) de agente"
                     } else {
                         echo "Todos os certificados OK."
                     }
@@ -85,24 +89,11 @@ pipeline {
         }
     }
 
-    post {
-        failure {
-            node('built-in') {
-                httpRequest(
-                    url:         CHAT_URL,
-                    httpMode:    'POST',
-                    contentType: 'APPLICATION_JSON',
-                    requestBody: groovy.json.JsonOutput.toJson([
-                        text: "❌ *CertWatch* — Falha na verificação de certificados\nBuild: ${env.BUILD_URL}"
-                    ])
-                )
-            }
-        }
-    }
+
 }
 
 // =============================================================
-def notificarCertificados(List alertas, String chatUrl, String emailTo, String buildUrl) {
+def notificarCertificados(List alertas, List falhas, String chatUrl, String emailTo, String buildUrl) {
     def expired  = alertas.findAll { it.days < 0 }
     def critical = alertas.findAll { it.days >= 0 && it.days <= 10 }
     def warning  = alertas.findAll { it.days > 10 }
@@ -110,6 +101,11 @@ def notificarCertificados(List alertas, String chatUrl, String emailTo, String b
     // --- Google Chat ---
     def chatMsg = '🔐 *CertWatch — Alerta de Certificados*\n\n'
 
+    if (falhas) {
+        chatMsg += "⚠️ *AGENTES INACESSÍVEIS (${falhas.size()}):*\n"
+        falhas.each { chatMsg += "  • `${it}`\n" }
+        chatMsg += '\n'
+    }
     if (expired) {
         chatMsg += "🔴 *EXPIRADOS (${expired.size()}):*\n"
         expired.each { chatMsg += "  • `${it.hostname}` — ${it.cn}\n    Expirado há ${Math.abs(it.days)} dias\n" }
@@ -125,7 +121,9 @@ def notificarCertificados(List alertas, String chatUrl, String emailTo, String b
         warning.each { chatMsg += "  • `${it.hostname}` — ${it.cn}\n    Expira em ${it.days} dias\n" }
         chatMsg += '\n'
     }
-    chatMsg += "📊 Total: ${alertas.size()} certificado(s) com alertas\n${buildUrl}"
+    chatMsg += "📊 ${alertas.size()} certificado(s) com alertas"
+    if (falhas) chatMsg += " | ${falhas.size()} servidor(es) inacessível(is)"
+    chatMsg += "\n${buildUrl}"
 
     httpRequest(
         url:         chatUrl,
@@ -135,6 +133,12 @@ def notificarCertificados(List alertas, String chatUrl, String emailTo, String b
     )
 
     // --- Email ---
+    def falhasHtml = falhas ? """
+        <div style='background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:12px;margin-bottom:16px;'>
+            <strong>⚠️ Servidores inacessíveis durante a verificação:</strong><br>
+            ${falhas.collect { "<code>${it}</code>" }.join(', ')}
+        </div>""" : ''
+
     def linhasHtml = alertas.collect { a ->
         def cor   = a.days < 0 ? '#e74c3c' : (a.days <= 10 ? '#e67e22' : '#f39c12')
         def label = a.days < 0 ? 'EXPIRADO' : (a.days <= 10 ? 'CRÍTICO' : 'ATENÇÃO')
@@ -155,6 +159,7 @@ def notificarCertificados(List alertas, String chatUrl, String emailTo, String b
             <h2 style='color:white;margin:0;'>🔐 CertWatch — Alerta de Certificados</h2>
         </div>
         <div style='padding:20px;border:1px solid #ddd;border-top:none;border-radius:0 0 8px 8px;'>
+            ${falhasHtml}
             <table style='width:100%;border-collapse:collapse;'>
                 <thead>
                     <tr style='background:#f8f9fa;'>
@@ -176,7 +181,7 @@ def notificarCertificados(List alertas, String chatUrl, String emailTo, String b
 
     mail(
         to:       emailTo,
-        subject:  "CertWatch — ${expired ? 'EXPIRADOS' : 'Certificados próximos do vencimento'} (${alertas.size()})",
+        subject:  "CertWatch — ${expired ? 'EXPIRADOS' : 'Certificados próximos do vencimento'}${falhas ? ' | ' + falhas.size() + ' servidor(es) inacessível(is)' : ''} (${alertas.size()} alerta(s))",
         body:     emailBody,
         charset:  'UTF-8',
         mimeType: 'text/html'
