@@ -1,15 +1,14 @@
 #!/bin/bash
-# Verifica certificados em CERT_PATH e exibe o status de cada um.
+# Verifica certificados em CERT_PATH.
+# stdout: HOSTNAME|ARQUIVO|CN|DIAS  (apenas alertas — parseado pelo Jenkinsfile)
+# stderr: linhas de log legíveis     (exibidas no console Jenkins)
 #
-# Uso: bash check_certs.sh [cert_path] [warn_days]
+# Uso: check_certs.sh [cert_path] [warn_days]
 
 CERT_PATH="${1:-/etc/haproxy/certs}"
 WARN_DAYS="${2:-30}"
 HOSTNAME=$(hostname -f)
-TIMESTAMP=$(date '+%b %d %H:%M:%S')
-
 total=0
-alertas=0
 
 for cert in "$CERT_PATH"/*.pem "$CERT_PATH"/*.crt "$CERT_PATH"/*.cer; do
     [ -f "$cert" ] || continue
@@ -27,16 +26,14 @@ for cert in "$CERT_PATH"/*.pem "$CERT_PATH"/*.crt "$CERT_PATH"/*.cer; do
     total=$(( total + 1 ))
 
     if [ "$days" -lt 0 ]; then
-        echo "$TIMESTAMP $HOSTNAME ❌ ${filename}: EXPIRADO há $(( days * -1 )) dias (CN: ${cn})"
-        alertas=$(( alertas + 1 ))
+        echo "❌ ${filename}: EXPIRADO há $(( days * -1 )) dias" >&2
         echo "${HOSTNAME}|${filename}|${cn}|${days}"
     elif [ "$days" -lt "$WARN_DAYS" ]; then
-        echo "$TIMESTAMP $HOSTNAME ⚠️  ${filename}: ${days} dias restantes (CN: ${cn})"
-        alertas=$(( alertas + 1 ))
+        echo "⚠️  ${filename}: ${days} dias restantes" >&2
         echo "${HOSTNAME}|${filename}|${cn}|${days}"
     else
-        echo "$TIMESTAMP $HOSTNAME ✅ ${filename}: ${days} dias (CN: ${cn})"
+        echo "✅ ${filename}: ${days} dias" >&2
     fi
 done
 
-echo "$TIMESTAMP $HOSTNAME 📋 Processados ${total} certificados — ${alertas} alerta(s)"
+echo "📋 ${HOSTNAME} — ${total} certificado(s) verificado(s)" >&2

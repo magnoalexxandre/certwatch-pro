@@ -24,33 +24,7 @@ pipeline {
                         'lnsat-lb-int-h2'
                     ]
 
-                    def checkScript = """
-                        CERT_PATH='${params.CERT_PATH}'
-                        WARN_DAYS='${params.WARN_DAYS}'
-                        HOSTNAME=\$(hostname -f)
-                        total=0
-                        for cert in "\$CERT_PATH"/*.pem "\$CERT_PATH"/*.crt "\$CERT_PATH"/*.cer; do
-                            [ -f "\$cert" ] || continue
-                            expiry=\$(openssl x509 -enddate -noout -in "\$cert" 2>/dev/null | cut -d= -f2)
-                            [ -z "\$expiry" ] && continue
-                            expiry_epoch=\$(date -d "\$expiry" +%s 2>/dev/null)
-                            now_epoch=\$(date +%s)
-                            days=\$(( (expiry_epoch - now_epoch) / 86400 ))
-                            filename=\$(basename \$cert)
-                            cn=\$(openssl x509 -subject -noout -in "\$cert" 2>/dev/null | sed 's/.*CN\\s*=\\s*//' | sed 's/[,\\/].*//')
-                            total=\$(( total + 1 ))
-                            if [ "\$days" -lt 0 ]; then
-                                echo "❌ \${filename}: EXPIRADO há \$(( days * -1 )) dias" >&2
-                                echo "\${HOSTNAME}|\${filename}|\${cn}|\${days}"
-                            elif [ "\$days" -lt "\$WARN_DAYS" ]; then
-                                echo "⚠️  \${filename}: \${days} dias restantes" >&2
-                                echo "\${HOSTNAME}|\${filename}|\${cn}|\${days}"
-                            else
-                                echo "✅ \${filename}: \${days} dias" >&2
-                            fi
-                        done
-                        echo "📋 \${HOSTNAME} — \${total} certificado(s) verificado(s)" >&2
-                    """
+                    def checkScript = "sudo /usr/local/sbin/check_certs.sh '${params.CERT_PATH}' '${params.WARN_DAYS}'"
 
                     def alertas  = []
                     def falhas   = []
