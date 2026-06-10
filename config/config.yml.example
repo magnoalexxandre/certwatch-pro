@@ -1,0 +1,33 @@
+# Dias de antecedência para alertas
+alert_days:
+  - 30
+  - 20
+  - 10
+  - 7
+  - 3
+  - 1
+
+# Configurações de notificação
+notifications:
+
+  # Email (SMTP)
+  email:
+    enabled: false
+    smtp_server: smtp.empresa.com.br
+    smtp_port: 587
+    smtp_user: alertas@empresa.com.br
+    smtp_password: senha
+    from: alertas@empresa.com.br
+    to:
+      - infra@empresa.com.br
+
+  # Telegram
+  telegram:
+    enabled: false
+    bot_token: YOUR_BOT_TOKEN
+    chat_id: YOUR_CHAT_ID
+
+  # Google Chat (webhook)
+  google_chat:
+    enabled: false
+    webhook_url: https://chat.googleapis.com/v1/spaces/XXXXX/messages?key=...&token=...

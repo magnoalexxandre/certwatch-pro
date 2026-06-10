@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CertMonitor - Monitoramento de Certificados</title>
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --card-bg: #ffffff;
+            --card-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            --header-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border-color: #f0f0f0;
+            --input-border: #dddddd;
+            --input-focus: #667eea;
+            --row-hover: #f8f9fa;
+            --thead-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --btn-secondary-bg: #f0f0f0;
+            --btn-secondary-color: #555555;
+            --hostname-border: #667eea;
+            --hostname-color: #667eea;
+            --hostname-hover-bg: #f0f0ff;
+        }
+
+        :root.dark {
+            --bg-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            --card-bg: #1e2030;
+            --card-shadow: 0 5px 15px rgba(0,0,0,0.4);
+            --header-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            --text-primary: #e0e0e0;
+            --text-secondary: #aaaaaa;
+            --text-muted: #666666;
+            --border-color: #2e3250;
+            --input-border: #3a3f5c;
+            --input-focus: #667eea;
+            --row-hover: #252840;
+            --thead-bg: linear-gradient(135deg, #3a3f6e 0%, #4a3a6e 100%);
+            --btn-secondary-bg: #2e3250;
+            --btn-secondary-color: #aaaaaa;
+            --hostname-border: #667eea;
+            --hostname-color: #9b9fe8;
+            --hostname-hover-bg: #252840;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            padding: 20px;
+            transition: background 0.3s;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; }
+
+        header {
+            background: var(--card-bg);
+            padding: 25px 30px;
+            border-radius: 15px;
+            box-shadow: var(--header-shadow);
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 15px;
+            transition: background 0.3s;
+        }
+
+        .header-left h1 { color: var(--text-primary); font-size: 2em; }
+        .header-left .subtitle { color: var(--text-secondary); font-size: 1em; margin-top: 4px; }
+
+        .header-right { display: flex; align-items: center; gap: 12px; }
+        .user-info { color: var(--text-muted); font-size: 0.9em; }
+
+        .btn {
+            padding: 10px 22px;
+            border-radius: 25px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: transform 0.2s, opacity 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover { transform: scale(1.04); opacity: 0.9; }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: var(--btn-secondary-bg);
+            color: var(--btn-secondary-color);
+        }
+
+        /* Dark mode toggle */
+        .dark-toggle {
+            background: var(--btn-secondary-bg);
+            color: var(--btn-secondary-color);
+            border: none;
+            padding: 10px 14px;
+            border-radius: 25px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.2s;
+        }
+
+        .dark-toggle:hover { transform: scale(1.1); }
+
+        /* Agentes */
+        .agents { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 25px; }
+
+        .agent-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 18px 22px;
+            box-shadow: var(--card-shadow);
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: 240px;
+            transition: background 0.3s;
+        }
+
+        .agent-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+        .agent-dot.ok      { background: #27ae60; box-shadow: 0 0 6px #27ae6088; }
+        .agent-dot.warning { background: #f39c12; box-shadow: 0 0 6px #f39c1288; }
+        .agent-dot.offline { background: #e74c3c; box-shadow: 0 0 6px #e74c3c88; }
+
+        .agent-name { font-weight: 700; color: var(--text-primary); font-size: 0.95em; }
+        .agent-meta { color: var(--text-muted); font-size: 0.8em; margin-top: 2px; }
+
+        /* Stats */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 18px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            padding: 22px;
+            border-radius: 15px;
+            box-shadow: var(--card-shadow);
+            text-align: center;
+            transition: transform 0.3s, background 0.3s;
+        }
+
+        .stat-card:hover { transform: translateY(-4px); }
+        .stat-number { font-size: 2.8em; font-weight: bold; margin-bottom: 8px; }
+        .stat-label { color: var(--text-secondary); font-size: 0.95em; text-transform: uppercase; letter-spacing: 1px; }
+
+        .stat-expired  { color: #e74c3c; }
+        .stat-critical { color: #e67e22; }
+        .stat-warning  { color: #f39c12; }
+        .stat-ok       { color: #27ae60; }
+        .stat-total    { color: #3498db; }
+
+        /* Filtros */
+        .filters {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: var(--card-shadow);
+            margin-bottom: 20px;
+            transition: background 0.3s;
+        }
+
+        .hostname-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .hostname-btn {
+            padding: 9px 20px;
+            border: 2px solid var(--hostname-border);
+            background: var(--card-bg);
+            color: var(--hostname-color);
+            border-radius: 25px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .hostname-btn:hover  { background: var(--hostname-hover-bg); }
+        .hostname-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 13px 15px;
+            font-size: 1em;
+            border: 2px solid var(--input-border);
+            border-radius: 10px;
+            background: var(--card-bg);
+            color: var(--text-primary);
+            transition: border-color 0.3s, background 0.3s;
+            outline: none;
+        }
+
+        .search-box:focus { border-color: var(--input-focus); }
+        .search-box::placeholder { color: var(--text-muted); }
+
+        /* Tabela */
+        .cert-table {
+            background: var(--card-bg);
+            border-radius: 15px;
+            box-shadow: var(--card-shadow);
+            overflow: hidden;
+            transition: background 0.3s;
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+
+        thead { background: var(--thead-bg); color: white; }
+
+        th {
+            padding: 18px 20px;
+            text-align: left;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.85em;
+        }
+
+        td { padding: 16px 20px; border-bottom: 1px solid var(--border-color); color: var(--text-primary); }
+
+        tbody tr { transition: background-color 0.2s; }
+        tbody tr:hover { background-color: var(--row-hover); }
+
+        .status-badge {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.85em;
+            text-transform: uppercase;
+        }
+
+        .status-expired  { background: #e74c3c; color: white; }
+        .status-critical { background: #e67e22; color: white; }
+        .status-warning  { background: #f39c12; color: white; }
+        .status-ok       { background: #27ae60; color: white; }
+
+        .hostname { font-weight: bold; color: var(--hostname-color); }
+
+        .cert-path {
+            color: var(--text-secondary);
+            font-size: 0.85em;
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+            max-width: 280px;
+        }
+
+        .cert-info { word-break: break-word; max-width: 240px; }
+        .cert-info small { color: var(--text-muted); }
+
+        .days-remaining { font-size: 1.2em; font-weight: bold; }
+        .last-update    { color: var(--text-muted); font-size: 0.78em; margin-top: 4px; }
+
+        .no-certs { text-align: center; padding: 60px; color: var(--text-secondary); font-size: 1.1em; }
+
+        @media (max-width: 768px) {
+            header { flex-direction: column; }
+            h1 { font-size: 1.6em; }
+            .stats { grid-template-columns: 1fr 1fr; }
+            table { font-size: 0.85em; }
+            th, td { padding: 10px 12px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <header>
+            <div class="header-left">
+                <h1>🔐 CertMonitor</h1>
+                <p class="subtitle">Monitoramento de Certificados SSL/TLS</p>
+            </div>
+            <div class="header-right">
+                <span class="user-info">{{ username }}</span>
+                <button class="dark-toggle" onclick="toggleDark()" title="Alternar modo escuro" id="darkBtn">🌙</button>
+                <button class="btn btn-primary" onclick="location.reload()">↻ Atualizar</button>
+                <a class="btn btn-secondary" href="/logout">Sair</a>
+            </div>
+        </header>
+
+        <!-- Status dos agentes -->
+        {% if agent_status %}
+        <div class="agents">
+            {% for agent in agent_status %}
+            {% set last = agent.last_seen or "" %}
+            <div class="agent-card">
+                <div class="agent-dot ok"></div>
+                <div>
+                    <div class="agent-name">{{ agent.hostname }}</div>
+                    <div class="agent-meta">
+                        {{ agent.cert_count }} certificado(s) &nbsp;·&nbsp;
+                        último report: {{ last[:19] | replace("T", " ") if last else "nunca" }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Cards de estatísticas -->
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number stat-total">{{ stats.total }}</div>
+                <div class="stat-label">Total</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number stat-expired">{{ stats.expired }}</div>
+                <div class="stat-label">Expirados</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number stat-critical">{{ stats.critical }}</div>
+                <div class="stat-label">Críticos (≤10d)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number stat-warning">{{ stats.warning }}</div>
+                <div class="stat-label">Atenção (≤20d)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number stat-ok">{{ stats.ok }}</div>
+                <div class="stat-label">OK</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number stat-total">{{ stats.hosts }}</div>
+                <div class="stat-label">Servidores</div>
+            </div>
+        </div>
+
+        <!-- Filtros -->
+        <div class="filters">
+            <div class="hostname-filters" id="hostnameFilters"></div>
+            <input type="text" class="search-box" id="searchBox"
+                   placeholder="🔍 Buscar por hostname, caminho ou subject..."
+                   onkeyup="filterTable()">
+        </div>
+
+        <!-- Tabela -->
+        <div class="cert-table">
+            {% if certificates %}
+            <table id="certTable">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Servidor</th>
+                        <th>Certificado</th>
+                        <th>Caminho</th>
+                        <th>Expira em</th>
+                        <th>Dias Restantes</th>
+                        <th>Tipo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cert in certificates %}
+                    <tr>
+                        <td>
+                            <span class="status-badge status-{{ cert.status_color }}">
+                                {% if cert.days_remaining < 0 %}EXPIRADO
+                                {% elif cert.days_remaining <= 10 %}CRÍTICO
+                                {% elif cert.days_remaining <= 20 %}ATENÇÃO
+                                {% else %}OK{% endif %}
+                            </span>
+                        </td>
+                        <td class="hostname">{{ cert.hostname }}</td>
+                        <td class="cert-info">
+                            <strong>{{ cert.subject }}</strong><br>
+                            <small>Emissor: {{ cert.issuer }}</small>
+                        </td>
+                        <td class="cert-path">{{ cert.path }}</td>
+                        <td>{{ cert.not_after[:10] if cert.not_after else "" }}</td>
+                        <td>
+                            <span class="days-remaining" style="color:
+                                {% if cert.days_remaining < 0 %}#e74c3c
+                                {% elif cert.days_remaining <= 10 %}#e67e22
+                                {% elif cert.days_remaining <= 20 %}#f39c12
+                                {% else %}#27ae60{% endif %}">
+                                {{ cert.days_remaining }} dias
+                            </span>
+                            {% if cert.last_update %}
+                            <div class="last-update">
+                                {{ cert.last_update[:16] | replace("T", " ") }}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td>{{ cert.cert_type }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="no-certs">
+                <p>📭 Nenhum certificado monitorado ainda.</p>
+                <p style="margin-top:16px;font-size:0.9em;">
+                    Configure e execute o agente nos servidores HAProxy para começar.
+                </p>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+
+    <script>
+        // --- Dark mode ---
+        function applyDark(dark) {
+            document.documentElement.classList.toggle('dark', dark);
+            document.getElementById('darkBtn').textContent = dark ? '☀️' : '🌙';
+        }
+
+        function toggleDark() {
+            const dark = !document.documentElement.classList.contains('dark');
+            localStorage.setItem('darkMode', dark);
+            applyDark(dark);
+        }
+
+        // Aplica preferência salva (ou preferência do sistema)
+        const saved = localStorage.getItem('darkMode');
+        if (saved !== null) {
+            applyDark(saved === 'true');
+        } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            applyDark(true);
+        }
+
+        // --- Filtros ---
+        let selectedHostname = null;
+
+        function createHostnameButtons() {
+            const table = document.getElementById('certTable');
+            if (!table) return;
+            const hostnames = new Set();
+            for (const row of table.querySelectorAll('tbody tr')) {
+                const cell = row.querySelector('.hostname');
+                if (cell) hostnames.add(cell.textContent.trim());
+            }
+            const container = document.getElementById('hostnameFilters');
+            container.innerHTML = '';
+            hostnames.forEach(hostname => {
+                const btn = document.createElement('button');
+                btn.className = 'hostname-btn';
+                btn.textContent = hostname;
+                btn.onclick = () => toggleHostnameFilter(hostname, btn);
+                container.appendChild(btn);
+            });
+        }
+
+        function toggleHostnameFilter(hostname, btn) {
+            if (selectedHostname === hostname) {
+                selectedHostname = null;
+                btn.classList.remove('active');
+            } else {
+                document.querySelectorAll('.hostname-btn').forEach(b => b.classList.remove('active'));
+                selectedHostname = hostname;
+                btn.classList.add('active');
+            }
+            filterTable();
+        }
+
+        function filterTable() {
+            const filter = document.getElementById('searchBox').value.toLowerCase();
+            const table  = document.getElementById('certTable');
+            if (!table) return;
+            for (const row of table.querySelectorAll('tbody tr')) {
+                const text     = row.textContent.toLowerCase();
+                const hostname = (row.querySelector('.hostname') || {}).textContent?.trim() || '';
+                const matchSearch   = text.includes(filter);
+                const matchHostname = !selectedHostname || hostname === selectedHostname;
+                row.style.display = (matchSearch && matchHostname) ? '' : 'none';
+            }
+        }
+
+        window.onload = createHostnameButtons;
+        setTimeout(() => location.reload(), 300000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Data
+data/
+*.db
+*.sqlite
+
+# Config sensível
+.env
+config/config.yml
+!config/config.yml.example
+agent/agent_config.yml
+!agent/agent_config.yml.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.dockerignore
+
+# Logs
+*.log
+
+# Arquivos pessoais
+note.md
+note2.md
+note3.md
+EXAMPLES.md
+EXECUTIVE_SUMMARY.md
+post.txt
+imgp/

@@ -1,0 +1,32 @@
+# URL do servidor CertMonitor central
+server_url: https://certs-sat.sef.sc.gov.br
+
+# Token de autenticação — deve ser igual ao API_TOKEN do .env
+api_token: 318c2e7e6eb3bb3a5d00955b7041cc0e92d9555d174714360505b55fc6e4383d
+
+# Verificação SSL:
+#   true               → usa o trust store do sistema (padrão)
+#   false              → desativa verificação (não recomendado)
+#   /caminho/para/ca.crt → CA bundle interno (ex: certificado raiz da SEF)
+ssl_verify: /etc/haproxy/ca-certificates.crt
+
+# Hostname que aparece no dashboard (deixe vazio para usar o hostname do sistema)
+hostname: ""
+
+# Diretórios para escanear
+scan_paths:
+  - /etc/haproxy/certs
+
+# Intervalo de escaneamento em segundos (3600 = 1 hora)
+scan_interval: 3600
+
+# Extensões a escanear
+extensions:
+  - .crt
+  - .cer
+  - .pem
+  - .pfx
+  - .p12
+
+# Modo: daemon (contínuo) ou once (executa uma vez e sai)
+mode: daemon
