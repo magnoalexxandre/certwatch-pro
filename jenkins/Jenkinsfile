@@ -1,5 +1,5 @@
-def CHAT_URL = 'https://chat.googleapis.com/v1/spaces/AAAAfWUP3JQ/messages'
-def EMAIL_TO = 'monitoramento-sat@sef.sc.gov.br'
+def CHAT_URL = 'https://chat.googleapis.com/v1alkjsdalksjhdlahsdlasjhdljashdjab'
+def EMAIL_TO = 'email@email'
 
 pipeline {
     agent none
@@ -20,8 +20,8 @@ pipeline {
             steps {
                 script {
                     def servers = [
-                        'lnsat-lb-ext-h1.sef.sc.gov.br',
-                        'lnsat-lb-ext-p1.sef.sc.gov.br'
+                        'lnsat-lb-int-h1',
+                        'lnsat-lb-int-h2'
                     ]
 
                     def checkScript = """
